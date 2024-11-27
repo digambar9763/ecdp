@@ -1,0 +1,190 @@
+AbbVie’s eClinical Data Platform (hereafter referred to as eCDP), is an operational data warehouse that consolidates transactional information from a multitude of transactional systems that support the AbbVie Development organization.  A key foundational component to the eClinical strategy is providing an Operational Data Store to bring the following key business benefits to AbbVie R&D:
+
+•	IMPACT – CTMS data
+
+•	RAVE – EDC  data
+
+•	IRT – Subject Visit, KIT, Kit Excursion and Shipment data
+
+•	PBR – Portfolio Management
+
+•	SDI – Subject Deviation
+
+•	APPTUS – Vendor and Contract Management for US contracts.
+
+•	Quantum – Study Financial Data
+
+•	Clinocopia – Drug Supply Chain 
+
+•	ETMF/eDOCS – Document management systems
+
+•	Tesla – CTMS data (Replacing IMPACT)
+
+•	Active Directory for Company personnel.
+
+•	TRACK (Inbound) – Drug Shipment.
+
+•	ELECTRA- Gather and report information for CT.gov and  utboun databases.
+
+•	SPIRIT- Manage review of externally sponsored and affiliate research proposals and activities.
+
+•	PIMS – (Phase-1 studies subject related data).
+
+•	ENROLLMENT MODELER- Used to develop a study model for site activation and subject enrollment.
+
+•	TRACTS- Central data repository for product registration data.
+
+•	ABBVIE CONNECT Pack & Subs- Regulatory submissions, communication and labeling App.
+
+•	OCTUS- Vendor and Contract Management for Ex-US.
+
+•	OMS- Database of vendors 
+
+•	AbbVie Investigator Xchange—To allow Site Principal Investigators to add/modify clinical assignments.
+ 
+AbbVie is moving to a new cloud based Clinical Trial Management System, which is termed as TESLA (force.com).  eCDP has to be changed to integrate it with TESLA as source system (for inbound feed) and also to provision existing legacy CTMS data of IMPACT to Tesla as Outbound. Implementation of TESLA Release 3.0 will facilitate improved business process capabilities related to study management, master reference data, trial transparency, monitoring, and study applications. Implementation of eCDP v5.0 will augment and facilitate improved business process capabilities of TESLA Release 3.0. eCDP Release 5.0 will also be supporting ELECTRA (Trial Transparency Management), SPIRIT (Application Management and Review and Approval for Investigator Initiated Studies) which have shared environment with TESLA.
+ 
+1.2.	Purpose of this Document
+
+•	Provide high level overview of TESLA integration with eCDP, for the inbound feed from TESLA
+
+•	Provide high level overview of outbound data feed/provision to TESLA by eCDP.
+ 
+1.3.	Scope 
+
+•	Consume the inbound data feed from TESLA and other above mentioned systems.
+
+•	Integrate the inbound data into eCDP platform, which includes Landing, Staging & ODS layer
+
+•	Provision legacy CTMS data stored in eCDP ODS layer to TESLA. 
+
+•	Integrate additional attributes of Impact into eCDP, required for provisioning to TESLA
+
+ 
+1.5.	Assumptions, Considerations and Risks
+
+•	eCDP will receive the inbound feed from TESLA in the form of RDBMS tables of the Pre-Landing area.
+
+•	eCDP will provision the outbound data to TESLA in the form of RDBMS tables in the outbound schema.
+
+•	eCDP will provision only one set of views/tables to TESLA.
+
+•	Missing Master Data Management system/process for the reference entities.
+
+•	Audit trail review was not required as the data in eCDP are read only and audit trail review is assumed to be covered at the source system level.
+
+ 
+2.3.	Design methodology and Tools
+ 
+2.3.1	Methodology
+ 
+The design methodology follows a layered approach of a series of layers for enhanced scalability, maintainability and organization.
+ 
+Layer	Description
+
+Pre-Landing	Will contain the TESLA inbound data in the form of tables.
+
+Landing	Data from Pre-Landing layer is extracted in to eCDP. Incremental data refreshes from Pre-landing layer are landed here for further processing. Landing Area will have a separate schema for storing the DB objects of TESLA 
+
+Staging	The input data from multiple source systems in conformed into a canonical format within staging tables. There is no Referential Integrity established in this layer.
+
+ODS	System agnostic data held in normalized fashion. 
+
+Out Bound	A subset of the business layer, which will have a separate out bound schema for provisioning data to TESLA.
+ 
+2.3.2	 Tools
+ 
+Following is the technology stack that will be used:
+
+Databases:	Oracle 11g
+
+ETL Tools:	Informatica 10.1
+
+Job Scheduler:	Autosys 11.3
+
+ 
+2.4.3.	Landing Processing Logic
+ 
+Following steps to be followed while populating data from Other Source Systems (Tesla) to Landing layer tables:
+
+•	Read last failed (If any) load Audit date (LOAD_PERIOD_FROM) load LD_CTRL_JOB_RUNS Job Control table for source system audit table
+
+•	Read last successful data load Audit Date from LD_CNTR_JOBRUNS Job Control table for source system audit table
+
+•	Use fixed time interval window e.g. 4 hours to gather source data from Tesla Source Systems
+
+•	Read added records from tables which falls into the time window and insert the new data into the target tables in landing layer
+
+•	Execute post load process to update LD_CTRL_JOB_RUNS Job Control table LOAD_PERIOD_FROM and LOAD_PERIOD_TO dates for data load Job Name and update status as Success/Failure
+
+•	For Tesla, Incremental load will happen from the source based on the ‘INFORMATICA_LAST_UPD’ column in the table.
+
+•	Data Quality checks will get applied as a part of landing load. These are the rules defined as a part of data profiling activity.
+
+•	Unix parameter file will be maintained with list of e-mail addresses to whom notification will be sent
+
+•	E-mail list will be configurable to add/remove e-mail address form list of notification receivers
+
+•	       The steps involved in changing the data quality rules (i.e. ‘how to’ process to change the rules post production) will be detailed in Standard Operating 
+
+•	      Procedure (SOP) document.
+
+ 
+2.4.6.	Staging Processing Logic
+ 
+•	Initially check whether previous job is completed or not. If not then wait till it gets completed. 
+
+•	Informatica job will Truncate table (partition in case of multiple source data) before data load
+
+•	Read last successful data load EXEC_RUN_ID from  LD_CTRL_JOB_RUNS Job Control table for landing  table
+
+•	Read records from Audit tables for EXEC_RUN_ID for processing
+
+•	Informatica job will invoke Data Quality stored procedure  for source records to check on Data Quality Rules
+
+•	If source records fail Data Quality Rules for Hard reject then divert records into error table, mark AUDIT_STATUS column in Landing table for records as ‘E’ (Error) 
+
+•	If source records fail Data Quality Rules for Soft reject  then mark AUDIT_STATUS column in Landing table for records as ‘W’ (Warning) and allow records for next processing steps, divert records into error table
+
+•	If source records pass Data Quality Rules (value of AUDIT_STATUS should be ‘P’ or ‘W’ for Pass or Warning) then process DQ passed records and soft delete records into next processing steps
+
+•	Process DQ passed and soft delete records from Landing layer into Staging layer
+
+•	Execute post load process to update LD_CTRL_JOB_RUNS Job Control table LOAD_PERIOD_FROM and LOAD_PERIOD_TO dates for data load Job Name and update status as Success
+
+•	Process will read incremental data (delta records w.r.t last successful data load). All historical version of data will be available in staging layer for respective data load
+
+•	For Impact, views will be created on the audit tables to get the latest records inserted/updated after the pervious run. ‘AUD_DATE_CHANGED’ column from audit table will be used to get the latest records.
+
+•	For Tesla, combination of Base table and audit table will be used to load the staging table. Column ‘Updated’ from base table & ‘Database Time from audit table will be used for fetching the incremental load. 
+
+ 
+2.4.9.	ODS Processing Logic
+ 
+•	Initially check whether previous job is completed or not. If not then wait till it gets completed. If it fails then execute the Restart ability mechanism else continues with below steps.
+
+•	Read last successful data load EXEC_RUN_ID from LD_CTRL_JOB_RUNS Job Control table for landing  table
+
+•	Fetch the data from staging table.
+
+•	Read all records from Staging source table and populate into ODS target table with source system identifier. This process will bring all version change of records from  staging to ODS
+
+•	Data lookup (join) on master tables will be done on matching natural keys and time window while fact record is active 
+
+•	Data harmonization rules will be executed after all source system data is populated in ODS table and golden record will be generated. 
+
+•	Perform the MD5* operation for the newly generated golden record. This output will help to determine whether golden record needs to be inserted or updated or neglected.
+
+•	Based on the control logic flag, router will decide the Insert or update pipeline. 
+
+•	History will be maintained in ODS table in the form of SCD-2 logic on golden records
+
+•	SCD-2** will be performed based on the natural keys of table and the changes occurred in the history columns mentioned in the data mapping documents.
+
+•	Revision number will indicate the latest version of record.  This number will get generated based on the previous record’s version number plus one.
+
+*MD5 is the function available in Informatica, which generates the checksum value for the string. This checksum will be useful while comparing the old value and the updated value.
+
+**SCD-2 will be implemented with the help of MD5 function, and changes will stored in ODS layer. Audit columns present in each table will indicate the versions of record. (Rvsn_Num , Insrt_Ts, Updt_Ts, Updt_Prcs_Exect_Id, Insrt_Prcs_Exect_Id) 
+
+ 
